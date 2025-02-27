@@ -12,8 +12,7 @@ from jax.lib import xla_client
 from jax.interpreters import mlir
 from jax.interpreters.mlir import ir
 from jaxlib.hlo_helpers import custom_call
-from jax.experimental.maps import xmap
-
+from jax.experimental import shard_map
 _run_mha_fwd = core.Primitive("run_mha_fwd")
 _run_mha_fwd.multiple_results = True
 _run_mha_fwd.def_impl(partial(xla.apply_primitive, _run_mha_fwd))
@@ -72,27 +71,43 @@ def run_mha(q, k, v, is_causal=False, softmax_scale=1.0, softcap=0.0):
     return output
 
 
-jax.config.update("experimental_xmap_spmd_lowering", True)
-jax.config.update("experimental_xmap_spmd_lowering_manual", True)
+# jax.config.update("experimental_xmap_spmd_lowering", True)
+# jax.config.update("experimental_xmap_spmd_lowering_manual", True)
 
 
+# def xmap_run_mha(q, k, v, is_causal, softmax_scale, softcap, device_count):
+#     q_reshaped = q.reshape(device_count, q.shape[0] // device_count, *q.shape[1:])
+#     k_reshaped = k.reshape(device_count, k.shape[0] // device_count, *k.shape[1:])
+#     v_reshaped = v.reshape(device_count, v.shape[0] // device_count, *v.shape[1:])
+#     xmapped = xmap(
+#         partial(
+#             run_mha, is_causal=is_causal, softmax_scale=softmax_scale, softcap=softcap
+#         ),
+#         in_axes=(
+#             ("q", None, None, None, None),
+#             ("q", None, None, None, None),
+#             ("q", None, None, None, None),
+#         ),
+#         out_axes=("q", None, None, None, None),
+#         axis_resources={"q": "q"},
+#     )
+#     out_reshaped = xmapped(q_reshaped, k_reshaped, v_reshaped)
+#     return out_reshaped.reshape(q.shape)
 def xmap_run_mha(q, k, v, is_causal, softmax_scale, softcap, device_count):
+    mesh = jax.sharding.Mesh(jax.devices(), ('q',))
+    
     q_reshaped = q.reshape(device_count, q.shape[0] // device_count, *q.shape[1:])
     k_reshaped = k.reshape(device_count, k.shape[0] // device_count, *k.shape[1:])
     v_reshaped = v.reshape(device_count, v.shape[0] // device_count, *v.shape[1:])
-    xmapped = xmap(
-        partial(
-            run_mha, is_causal=is_causal, softmax_scale=softmax_scale, softcap=softcap
-        ),
-        in_axes=(
-            ("q", None, None, None, None),
-            ("q", None, None, None, None),
-            ("q", None, None, None, None),
-        ),
-        out_axes=("q", None, None, None, None),
-        axis_resources={"q": "q"},
+
+    mapped = shard_map.shard_map(
+        partial(run_mha, is_causal=is_causal, softmax_scale=softmax_scale, softcap=softcap),
+        mesh,
+        in_specs=("q", None, None, None, None),
+        out_specs=("q", None, None, None, None),
+        check_rep=True
     )
-    out_reshaped = xmapped(q_reshaped, k_reshaped, v_reshaped)
+    out_reshaped = mapped(q_reshaped, k_reshaped, v_reshaped)
     return out_reshaped.reshape(q.shape)
 
 
@@ -335,9 +350,9 @@ def _run_mha_fwd_abstract(q, k, v, tiled, is_causal, softmax_scale, softcap):
         raise ValueError(f"only f16/bf16 are supported {dt}")
     b_sz, seqlen_q, num_heads, head_size_og = q.shape
     return (
-        ShapedArray(q.shape, q_dtype, named_shape=q.named_shape),  # output
+        ShapedArray(q.shape, q_dtype),  # output
         ShapedArray(
-            (b_sz * num_heads * seqlen_q,), jnp.float32, named_shape=q.named_shape
+            (b_sz * num_heads * seqlen_q,), jnp.float32
         ),  # invvar
     )
 
@@ -368,9 +383,9 @@ def _run_mha_bwd_abstract(
     dq_accum_shape = b_sz, seqlen_q_rounded, num_heads, head_size_rounded
     dq_semaphore_shape = seqlen_q_rounded, b_sz, num_heads
     return (
-        ShapedArray(q.shape, q_dtype, named_shape=q.named_shape),  # grad q
-        ShapedArray(k.shape, k_dtype, named_shape=k.named_shape),  # grad k
-        ShapedArray(v.shape, v_dtype, named_shape=v.named_shape),  # grad v
+        ShapedArray(q.shape, q_dtype),  # grad q
+        ShapedArray(k.shape, k_dtype),  # grad k
+        ShapedArray(v.shape, v_dtype),  # grad v
         ShapedArray(softmax_d_shape, jnp.float32),
         ShapedArray(dq_accum_shape, jnp.float32),
         ShapedArray(softmax_d_shape, jnp.float32),
