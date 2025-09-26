@@ -2,13 +2,14 @@
 name = "jax_flash_attn"
 description = "Flash attention CUDA kernels for jax"
 authors = []
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dynamic = ["version"]
 
 dependencies = [
-    "jax[cuda12]>=0.4.16",
-    "jaxlib>=0.4.16",
+    "jax[cuda12]>=0.7.0",
+    "jaxlib>=0.7.0",
 ]
+
 [dependency-groups]
 test = [
     "flax",
