@@ -2,16 +2,25 @@
 name = "jax_flash_attn"
 description = "Flash attention CUDA kernels for jax"
 authors = []
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dynamic = ["version"]
 
-[dependencies]
-jax = ">=0.4.16"
-jaxlib = ">=0.4.16"
-numpy = "1.23.1"
+dependencies = [
+    "jax[cuda12]>=0.7.0",
+    "jaxlib>=0.7.0",
+]
+
+[dependency-groups]
+test = [
+    "flax",
+]
 
 [build-system]
-requires = ["pybind11>=2.6", "scikit-build-core>=0.5"]
+requires = [
+    "pybind11>=2.6",
+    "scikit-build-core>=0.5",
+    "setuptools_scm[toml]>=6.2",
+]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
@@ -22,7 +31,6 @@ minimum-version = "0.5"
 build-dir = "build/{wheel_tag}"
 
 [tool.setuptools_scm]
-write_to = "src/jax_flash_attn/jax_flash_attn.py"
 
 [tool.maturin]
 python-source = "python"

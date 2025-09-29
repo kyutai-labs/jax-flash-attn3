@@ -16,22 +16,19 @@ The BSD-3 license that holds for the flash-attention repo also applies here.
 
 ## Building the C++ Version
 
-Build a wheel file. `-j32` will compile 32 cuda kernels in parallel which could exhaust memory on boxes with
-less than 100GB.
+Build a wheel using `uv` build system.
 ```bash
-python setup.py bdist_wheel -- -- -j32
+uv build --wheel
+```
+For parallel compilation of CUDA kernels, you can set the `CMAKE_BUILD_PARALLEL_LEVEL` env variable:
+```bash
+CMAKE_BUILD_PARALLEL_LEVEL=32 uv build --wheel
 ```
 
 Build locally for development.
 ```bash
-python setup.py build_ext -i -- -- -j32
-python test.py # run some tests and benchmarks
-```
-
-This may require you to install the two following pip packages:
-```bash
-pip install scikit_build
-pip install "pybind11[global]"
+uv sync --group test
+uv run test.py # run some tests and benchmarks
 ```
 
 ## Building the Rust Version
