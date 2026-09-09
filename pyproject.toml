@@ -35,3 +35,6 @@ build-dir = "build/{wheel_tag}"
 [tool.maturin]
 python-source = "python"
 module-name = "jflash_attn._jflash_attn"
+
+[tool.uv]
+exclude-newer = "7 days"
